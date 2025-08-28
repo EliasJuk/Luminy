@@ -1,89 +1,40 @@
-use blake3::Hasher;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::fs::File;
+use std::io::Write;
 
-// Estrutura de um bloco
-#[derive(Debug, Clone)]
-struct Block {
-	index: u64,
-	timestamp: u128,
-	data: String,
-	previous_hash: String,
-	nonce: u64,
-	hash: String,
-}
-
-// Função para calcular o hash do bloco
-fn calculate_hash(
-	index: u64,
-	timestamp: u128,
-	data: &str,
-	previous_hash: &str,
-	nonce: u64,
-	) -> String {
-		let mut hasher = Hasher::new();
-		hasher.update(&index.to_le_bytes());
-		hasher.update(&timestamp.to_le_bytes());
-		hasher.update(data.as_bytes());
-		hasher.update(previous_hash.as_bytes());
-		hasher.update(&nonce.to_le_bytes());
-		hasher.finalize().to_hex().to_string()
-}
-
-// Função de mineração (PoW)
-fn mine_block(index: u64, data: &str, previous_hash: &str, difficulty: usize) -> Block {
-	let prefix = "0".repeat(difficulty);
-	let mut nonce = 0;
-	let timestamp = SystemTime::now()
-		.duration_since(UNIX_EPOCH)
-		.unwrap()
-		.as_millis();
-
-	loop {
-		let hash = calculate_hash(index, timestamp, data, previous_hash, nonce);
-		if hash.starts_with(&prefix) {
-			return 
-				Block {
-					index,
-					timestamp,
-					data: data.to_string(),
-					previous_hash: previous_hash.to_string(),
-					nonce,
-					hash,
-				};
-		}
-		nonce += 1;
-		}
-}
+mod modules;
+use modules::wallet::generate_wallet;
+use modules::transaction::Transaction;
+use modules::miner::mine_block;
 
 fn main() {
-	//Criação do bloco gênesis
-	let genesis_block = mine_block(0, "Bloco Gênesis", "0", 4);
-	println!("Bloco Gênesis: {:?}\n", genesis_block);
+  // Gerar 2 carteiras para teste
+  let (_wallet1_key, wallet1_addr) = generate_wallet();
+  let (_wallet2_key, wallet2_addr) = generate_wallet();
+  println!("Wallet 1: {}", wallet1_addr);
+  println!("Wallet 2: {}", wallet2_addr);
 
-	//Minerarando o segundo bloco
-	let bloco2 = mine_block(
-		1,
-		"Transação: 0x1BgGZ9tcN4rm -> 0x1SdiUi4p26Lb : 50 Lumi",
-		&genesis_block.hash,
-		4,);
-	println!("Bloco 2: {:?}", bloco2);
-	println!("Hash do bloco 2: {}\n", bloco2.hash);
+		// Criar bloco gênesis
+  let genesis_tx = vec![Transaction {
+    from_address: String::from("0"),
+    to_address: wallet1_addr.clone(),
+    amount: 100,
+  }];
+  let genesis_block = mine_block(0, genesis_tx, "0", 4);
+  println!("Bloco Gênesis: {:?}", genesis_block);
 
-	//Minerarando o terceiro bloco
-	let bloco3 = mine_block(
-		2, 
-		"Transação: 0x1SdiUi4p26Lb -> 0x19ZjTRaZMZQA :  20 Lumi",
-		&bloco2.hash, 
-		5);
-	println!("Bloco 3: {:?}", bloco3);
-	println!("Nonce do bloco 3: {}\n", bloco3.nonce);
+  // Criar segundo bloco
+  let block2_tx = vec![Transaction {
+    from_address: wallet1_addr.clone(),
+    to_address: wallet2_addr.clone(),
+    amount: 50,
+  }];
+  let block2 = mine_block(1, block2_tx, &genesis_block.hash, 6);
+  println!("Bloco 2: {:?}", block2);
 
-	//Minerarando o quarto bloco
-	let bloco4 = mine_block(
-		3, 
-		"Transação: 0x1SdiUi4p26Lb -> 0x19ZjTRaZMZQA :  20 Lumi",
-		&bloco3.hash,
-		6);
-	println!("Bloco 4: {:?}", bloco4);
-	println!("Nonce do bloco 4: {}\n", bloco4.nonce);
+  // Salvar blockchain em JSON
+  let blockchain = vec![genesis_block, block2];
+  let json = serde_json::to_string_pretty(&blockchain).unwrap();
+  let mut file = File::create("blockchain.json").unwrap();
+  file.write_all(json.as_bytes()).unwrap();
+  println!("Blockchain salva em blockchain.json");
 }
