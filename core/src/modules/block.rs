@@ -9,4 +9,6 @@ pub struct Block {
   pub previous_hash: String,
   pub nonce: u64,
   pub hash: String,
+  pub dificuldade: u32,
+  pub tempo_ms: u64, 
 }

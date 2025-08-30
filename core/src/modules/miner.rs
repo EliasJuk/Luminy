@@ -1,4 +1,4 @@
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{SystemTime, UNIX_EPOCH, Instant};
 use blake3::Hasher;
 
 use super::transaction::Transaction;
@@ -28,14 +28,18 @@ pub fn mine_block(
   ) -> Block {
     let prefix = "0".repeat(difficulty);
     let mut nonce = 0;
+
+    let inicio = Instant::now();
     let timestamp = SystemTime::now()
-      .duration_since(UNIX_EPOCH)
-      .unwrap()
-      .as_millis();
+    .duration_since(UNIX_EPOCH)
+    .unwrap()
+    .as_millis();
 
     loop {
       let hash = calculate_hash(index, timestamp, &transactions, previous_hash, nonce);
       if hash.starts_with(&prefix) {
+        let tempo_ms = inicio.elapsed().as_millis() as u64;
+
         return Block {
           index,
           timestamp,
@@ -43,8 +47,10 @@ pub fn mine_block(
           previous_hash: previous_hash.to_string(),
           nonce,
           hash,
-          };
-        }
+          dificuldade: difficulty as u32,
+          tempo_ms,
+        };
+      }
     nonce += 1;
   }
 }
