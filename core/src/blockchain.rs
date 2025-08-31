@@ -1,23 +1,31 @@
-use std::fs::{File, create_dir_all};
-use std::io::Write;
 use std::time::Instant;
+use std::thread;
 
-mod modules;
-use modules::wallet::generate_wallet;
-use modules::transaction::Transaction;
-use modules::miner::mine_block;
-use modules::difficulty::ajustar_dificuldade;
+use crate::modules::wallet::generate_wallet;
+use crate::modules::transaction::Transaction;
+use crate::modules::miner::{mine_block, validate_block};
+use crate::modules::difficulty::ajustar_dificuldade;
+use crate::modules::p2p::{Message, start_node, send_message};
+use crate::modules::block::Block;
+use crate::modules::storage::salvar_blockchain;
 
-fn main() {
+pub fn blockchain() {
   // Gerar 2 carteiras para teste
   let (_wallet1_key, wallet1_addr) = generate_wallet();
   let (_wallet2_key, wallet2_addr) = generate_wallet();
   println!("Wallet 1: {}", wallet1_addr);
   println!("Wallet 2: {}", wallet2_addr);
 
-  //=====================================================
-	// Criar bloco gênesis
-  let mut dificuldade: u32 = 4;
+  let mut blockchain: Vec<Block> = Vec::new();
+
+  //==================== Iniciar nó P2P ====================
+  let mut bc_clone = blockchain.clone();
+  thread::spawn(move || {
+    start_node("127.0.0.1:4000", &mut bc_clone);
+  });
+
+  //==================== Bloco Gênesis ====================
+  let mut dificuldade: u32 = 2;
   let inicio_genesis = Instant::now();
 
   let genesis_tx = vec![Transaction {
@@ -34,8 +42,7 @@ fn main() {
   println!("\nBloco Gênesis: {:?}", genesis_block);
   println!("Duração: {} ms | Nova dificuldade: {}", duracao_genesis, dificuldade);
 
-  //=====================================================
-  // Criar segundo bloco
+  //==================== Bloco 2 ====================
   let inicio_block2 = Instant::now();
   print!("\n Minerando bloco 2");
 
@@ -53,8 +60,23 @@ fn main() {
   println!("\nBloco 2: {:?}", block2);
   println!("Duração: {} ms | Nova dificuldade: {}", duracao_block2, dificuldade);
 
-  //=====================================================
-  // Criar terceiro bloco
+  //==================== VALIDAR BLOCO 2 ====================
+  if validate_block(&block2, &genesis_block) {
+    println!("Bloco 2 válido!");
+    blockchain.push(block2.clone());
+
+    let msg = Message {
+      msg_type: "NEW_BLOCK".to_string(),
+      payload: serde_json::to_string(&block2).unwrap(),
+    };
+
+    // Enviar para outro nó (ex: 127.0.0.1:4001)
+    send_message("127.0.0.1:4001", &msg);
+    } else {
+      println!("Bloco 2 inválido!");
+    }
+
+  //==================== Bloco 3 ====================
   let inicio_block3 = Instant::now();
   print!("\n Minerando bloco 3");
 
@@ -79,14 +101,8 @@ fn main() {
   println!("\nBloco 3: {:?}", block3);
   println!("Duração: {} ms | Nova dificuldade: {}", duracao_block3, dificuldade);
 
-  //=====================================================
-  // Garante que a pasta 'data' exista
-  create_dir_all("./data").unwrap();
 
-  // Salvar blockchain em JSON
+  //==================== Salvar Blockchain ====================
   let blockchain = vec![genesis_block, block2, block3];
-  let json = serde_json::to_string_pretty(&blockchain).unwrap();
-  let mut file = File::create("data/blockchain.json").unwrap();
-  file.write_all(json.as_bytes()).unwrap();
-  println!("Blockchain salva em blockchain.json");
+  salvar_blockchain(&blockchain, "./data");
 }
