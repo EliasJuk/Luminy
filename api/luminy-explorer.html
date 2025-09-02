@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visualizador de Blockchain</title>
+    <style>
+      /* Estilos Gerais */
+      body {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        background-color: #0b0c10;
+        color: #c5c6c7;
+        margin: 0;
+        padding: 20px;
+      }
+
+      .container {
+        max-width: 1200px;
+        margin: 0 auto;
+      }
+
+      h1 {
+        color: #66fcf1;
+        text-align: center;
+        font-weight: 300;
+      }
+
+      /* Área de Upload */
+      .upload-container {
+        text-align: center;
+        margin-bottom: 30px;
+        padding: 20px;
+        border: 2px dashed #45a29e;
+        border-radius: 10px;
+        background-color: #1f2833;
+      }
+
+      .upload-container label {
+        background-color: #66fcf1;
+        color: #0b0c10;
+        padding: 12px 25px;
+        border-radius: 5px;
+        cursor: pointer;
+        font-weight: bold;
+        transition: background-color 0.3s;
+      }
+
+      .upload-container label:hover {
+        background-color: #45a29e;
+      }
+
+      #file-upload {
+        display: none;
+      }
+
+      .upload-status {
+        margin-top: 15px;
+        font-size: 0.9em;
+        color: #c5c6c7;
+      }
+
+      .upload-status.error {
+        color: #ff6347;
+      }
+
+      /* Divisória com texto */
+      .separator {
+        text-align: center;
+        margin: 40px 0;
+        position: relative;
+      }
+
+      .separator::before {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 0;
+        width: 100%;
+        height: 1px;
+        background-color: #45a29e;
+        z-index: 1;
+      }
+
+      .separator span {
+        background-color: #0b0c10;
+        padding: 0 20px;
+        position: relative;
+        z-index: 2;
+        color: #66fcf1;
+        font-weight: bold;
+      }
+
+      /* Estilos do Bloco (Mempool e Minerados) */
+      .block-card {
+        flex-shrink: 0;
+        width: 280px;
+        height: auto;
+        background-color: #1f2833;
+        border: 1px solid #45a29e;
+        border-radius: 10px;
+        padding: 20px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+        transition: transform 0.3s, box-shadow 0.3s, border-color 0.3s;
+        cursor: pointer;
+        word-wrap: break-word;
+      }
+
+      .block-card.selected {
+        border-color: #66fcf1;
+        box-shadow: 0 0 20px rgba(102, 252, 241, 0.5);
+        transform: translateY(-5px);
+      }
+
+      .block-card h2 {
+        margin-top: 0;
+        font-weight: 500;
+        color: #66fcf1;
+        text-align: center;
+      }
+
+      .block-card p {
+        margin: 8px 0;
+        font-size: 0.9em;
+        color: #c5c6c7;
+      }
+
+      .block-card strong {
+        color: #45a29e;
+      }
+
+      /* Estilo da Mempool */
+      .mempool {
+        width: 200px;
+        border-color: #888;
+        background-color: #333;
+        order: -1;
+        /* Garante que a Mempool seja sempre a primeira à esquerda */
+      }
+
+      .mempool h2,
+      .mempool strong {
+        color: #ccc;
+      }
+
+      /* Estilos do Carrossel */
+      .blocks-scroller {
+        display: flex;
+        gap: 20px;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        padding-bottom: 20px;
+        min-height: 200px;
+      }
+
+      .blocks-scroller::-webkit-scrollbar {
+        height: 8px;
+      }
+
+      .blocks-scroller::-webkit-scrollbar-thumb {
+        background-color: #45a29e;
+        border-radius: 4px;
+      }
+
+      .blocks-scroller::-webkit-scrollbar-track {
+        background-color: #1f2833;
+      }
+
+      /* Painel de Detalhes do Bloco */
+      #details-panel {
+        display: none;
+        background-color: #1f2833;
+        border: 1px solid #45a29e;
+        border-radius: 10px;
+        padding: 20px;
+        margin-top: 30px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+      }
+
+      #details-panel h2 {
+        text-align: center;
+        color: #66fcf1;
+        margin-top: 0;
+      }
+
+      #details-panel .transaction-list {
+        margin-top: 20px;
+      }
+
+      #details-panel .transaction {
+        background-color: #0b0c10;
+        border: 1px solid #45a29e;
+        border-radius: 5px;
+        padding: 10px;
+        margin-bottom: 10px;
+        font-size: 0.9em;
+      }
+
+      #details-panel .transaction p {
+        margin: 5px 0;
+      }
+
+      #details-panel .transaction span {
+        color: #66fcf1;
+        font-weight: bold;
+      }
+
+      .address-hash {
+        word-wrap: break-word;
+        font-family: 'Courier New', Courier, monospace;
+        background-color: #2a3847;
+        padding: 2px 5px;
+        border-radius: 3px;
+        font-size: 0.8em;
+        color: #c5c6c7;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Luminy Explorer</h1>
+
+      <div class="upload-container">
+        <label for="file-upload">Carregar Arquivo JSON da Blockchain</label>
+        <input type="file" id="file-upload" accept=".json">
+        <div id="upload-status" class="upload-status"></div>
+      </div>
+
+      <div class="separator"><span>Blocos da Blockchain</span></div>
+
+      <div class="blocks-scroller" id="blocks-container">
+        <div class="block-card mempool" id="mempool-card">
+          <h2>Mempool</h2>
+          <p>Transações pendentes</p>
+          <p><strong>Transações:</strong> <span id="mempool-tx-count">0</span></p>
+        </div>
+      </div>
+
+      <div id="details-panel">
+      </div>
+    </div>
+
+    <script>
+      const fileUpload = document.getElementById('file-upload');
+      const blocksContainer = document.getElementById('blocks-container');
+      const mempoolTxCount = document.getElementById('mempool-tx-count');
+      const detailsPanel = document.getElementById('details-panel');
+      const uploadStatus = document.getElementById('upload-status');
+      const mempoolCard = document.getElementById('mempool-card');
+      let blockchainData = null;
+
+      // Simulação de transações na mempool
+      const mockMempool = [{
+        from_address: "14V7d...E5eF",
+        to_address: "17Gf4...Y6aA",
+        amount: 15
+      }, {
+        from_address: "12XGm...orT5",
+        to_address: "11B6p...pv8",
+        amount: 5
+      },];
+      mempoolTxCount.textContent = mockMempool.length;
+
+      // Função para formatar o timestamp
+      function formatTimestamp(timestamp) {
+        const date = new Date(timestamp);
+        return date.toLocaleString();
+      }
+
+      // Função para renderizar o painel de detalhes do bloco
+      function renderDetailsPanel(block) {
+        if (!block) {
+          detailsPanel.style.display = 'none';
+          return;
+        }
+
+        detailsPanel.style.display = 'block';
+        const txCount = block.transactions ? block.transactions.length : 0;
+        let transactionsHtml = '<div class="transaction-list">';
+        if (txCount > 0) {
+          transactionsHtml += block.transactions.map(tx => `
+                  <div class="transaction">
+                      <p><strong>De:</strong> <span class="address-hash">${tx.from_address}</span></p>
+                      <p><strong>Para:</strong> <span class="address-hash">${tx.to_address}</span></p>
+                      <p><strong>Quantia:</strong> <span>${tx.amount}</span></p>
+                  </div>
+                  `).join('');
+        } else {
+          transactionsHtml += '<p style="text-align: center;">Nenhuma transação neste bloco.</p>';
+        }
+        transactionsHtml += '</div>';
+
+        const blockTitle = block.title || `Detalhes do Bloco #${block.index}`;
+        const blockInfo = block.isMempool ? '' : `
+                  <p><strong>Hash:</strong> <span class="address-hash">${block.hash}</span></p>
+                  <p><strong>Hash Anterior:</strong> <span class="address-hash">${block.previous_hash}</span></p>
+                  <p><strong>Timestamp:</strong> ${formatTimestamp(block.timestamp)}</p>
+                  <p><strong>Nonce:</strong> ${block.nonce}</p>
+                  <p><strong>Dificuldade:</strong> ${block.dificuldade}</p>
+                  <p><strong>Tempo de Mineração:</strong> ${block.tempo_ms} ms</p>
+              `;
+
+        detailsPanel.innerHTML = `
+                  <h2>${blockTitle}</h2>
+                  ${blockInfo}
+                  <h3>Transações (${txCount})</h3>
+                  ${transactionsHtml}
+              `;
+      }
+
+      // Função para renderizar os blocos minerados
+      function renderBlocks() {
+        const existingBlocks = blocksContainer.querySelectorAll('.block-card:not(.mempool)');
+        existingBlocks.forEach(block => block.remove());
+
+        if (!blockchainData || blockchainData.length === 0) {
+          return;
+        }
+
+        blockchainData.forEach(block => {
+          const blockDiv = document.createElement('div');
+          blockDiv.className = 'block-card';
+          blockDiv.dataset.index = block.index;
+
+          const txCount = block.transactions ? block.transactions.length : 0;
+          const blockHtml = `
+                      <h2>Bloco #${block.index}</h2>
+                      <p><strong>Hash:</strong> ${block.hash.substring(0, 10)}...</p>
+                      <p><strong>Transações:</strong> ${txCount}</p>
+                      <p><strong>Tempo:</strong> ${formatTimestamp(block.timestamp)}</p>
+                  `;
+          blockDiv.innerHTML = blockHtml;
+          blocksContainer.appendChild(blockDiv);
+
+          blockDiv.addEventListener('click', () => {
+            document.querySelectorAll('.block-card').forEach(card => {
+              card.classList.remove('selected');
+            });
+            blockDiv.classList.add('selected');
+            renderDetailsPanel(block);
+          });
+        });
+      }
+
+      fileUpload.addEventListener('change', (event) => {
+        const file = event.target.files[0];
+        if (!file) {
+          uploadStatus.textContent = 'Nenhum arquivo selecionado.';
+          uploadStatus.classList.remove('error');
+          blockchainData = null;
+          renderBlocks();
+          renderDetailsPanel(null);
+          return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          try {
+            const data = JSON.parse(e.target.result);
+            if (data && Array.isArray(data.blocks)) {
+              blockchainData = data.blocks;
+              uploadStatus.textContent = `Arquivo "${file.name}" carregado com sucesso.`;
+              uploadStatus.classList.remove('error');
+              renderBlocks();
+              renderDetailsPanel(null);
+            } else {
+              blockchainData = null;
+              uploadStatus.textContent = 'Erro: O arquivo não é um JSON válido ou não contém uma chave "blocks".';
+              uploadStatus.classList.add('error');
+              renderBlocks();
+              renderDetailsPanel(null);
+            }
+          } catch (error) {
+            blockchainData = null;
+            uploadStatus.textContent = 'Erro ao processar o arquivo. Certifique-se de que é um JSON válido.';
+            uploadStatus.classList.add('error');
+            renderBlocks();
+            renderDetailsPanel(null);
+            console.error('Erro de parsing JSON:', error);
+          }
+        };
+        reader.readAsText(file);
+      });
+
+      // Adiciona funcionalidade de clique para o cartão da Mempool
+      mempoolCard.addEventListener('click', () => {
+        document.querySelectorAll('.block-card').forEach(card => {
+          card.classList.remove('selected');
+        });
+        mempoolCard.classList.add('selected');
+
+        // Cria um objeto "mock" para representar a mempool no painel de detalhes
+        const mempoolBlock = {
+          title: 'Transações Pendentes (Mempool)',
+          transactions: mockMempool,
+          isMempool: true,
+        };
+        renderDetailsPanel(mempoolBlock);
+      });
+
+      document.addEventListener('DOMContentLoaded', () => {
+        renderBlocks();
+        renderDetailsPanel(null);
+      });
+    </script>
+  </body>
+</html>
