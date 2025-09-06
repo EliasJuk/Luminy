@@ -12,3 +12,17 @@ pub struct Block {
   pub dificuldade: u32,
   pub tempo_ms: u64, 
 }
+
+// Struct para o cabeçalho de status do JSON
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Status {
+  pub last_block: u64,
+  pub last_update: u64,
+}
+
+// Struct que representa o arquivo JSON completo (cabeçalho + blocos)
+#[derive(Serialize, Deserialize, Debug)]
+pub struct BlockchainData {
+  pub status: Status,
+  pub blocks: Vec<Block>,
+}
